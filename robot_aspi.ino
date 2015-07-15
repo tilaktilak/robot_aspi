@@ -104,8 +104,8 @@ void setup( void )
 #define ANGLE_MAX   160 // Travel of sonar servo
 #define ANGLE_MIN   20 // Travel of sonar servo
 #define SERVO_STEP   5 // Step of sonar servo in degree
-#define FRONT_ANGLE 20 // Tolerance to determine obstacle orientation
-#define OBS_MIN 60
+#define FRONT_ANGLE 10 // Tolerance to determine obstacle orientation
+#define OBS_MIN 100
 void vTaskServo( void *pvParameters )
 {
     /* Variable Definition */
@@ -152,7 +152,7 @@ void vTaskServo( void *pvParameters )
 
         uS = sonar.ping(); // Send ping, get ping time in microseconds (uS).
         distance = uS/(0.1*US_ROUNDTRIP_CM);
-
+        if(distance != 0){
         /* Check for obstacle and return direction */
         if(distance < OBS_MIN){
             if(current_angle < 90 - FRONT_ANGLE){
@@ -165,9 +165,10 @@ void vTaskServo( void *pvParameters )
             }
             else{
                 FRONT_OBSTACLE = 1;
+                vPrintString("Servo - Obstacle Front\r\n");
             }
         }
-
+        }
         vTaskDelayUntil( &xLastWakeTime, ( 40 / portTICK_PERIOD_MS ) );
     }
 }
@@ -230,20 +231,20 @@ void vTaskCommand( void *pvParameters )
     for( ;; )
     {
         if(RIGHT_OBSTACLE){
-            vPrintString("Command - Turn Left \r\n");
-            tourne(5,4);
-            //RIGHT_OBSTACLE = 0;
+            //vPrintString("Command - Turn Left \r\n");
+            tourne(-15,4);
+            RIGHT_OBSTACLE = 0;
         }
         else if(LEFT_OBSTACLE){
-            vPrintString("Command - Turn Right \r\n");
-            tourne(-5,4);
-            //LEFT_OBSTACLE = 0;
+            //vPrintString("Command - Turn Right \r\n");
+            tourne(+15,4);
+            LEFT_OBSTACLE = 0;
         }
 
         else if(FRONT_OBSTACLE){
-            vPrintString("Command - Go Backward \r\n");
-            avance(-4);
-            //FRONT_OBSTACLE = 0;
+            //vPrintString("Command - Go Backward \r\n");
+           avance(-4);
+            FRONT_OBSTACLE = 0;
         }
 
         else {
@@ -252,11 +253,11 @@ void vTaskCommand( void *pvParameters )
         //avance(4);
         //moteur_droit.write(90);
         //moteur_gauche.write(90);
-        vTaskDelay(100/portTICK_PERIOD_MS);
-        RIGHT_OBSTACLE = 0;
+        /*RIGHT_OBSTACLE = 0;
         LEFT_OBSTACLE = 0;
-        FRONT_OBSTACLE = 0;
-        vTaskDelayUntil( &xLastWakeTime, ( 500 / portTICK_PERIOD_MS ) );
+        FRONT_OBSTACLE = 0;*/
+    vTaskDelay(( 1000 / portTICK_PERIOD_MS ) );
+
     }
 }
 
@@ -279,13 +280,13 @@ void tourne(int angle, int vitesse_moteur)
     {
         moteur_droit.write((90 + vitesse_moteur*2.1) * sens_rotation) ;
         moteur_gauche.write((90 + vitesse_moteur) * sens_rotation) ;
-        delay(abs(angle*9.5));
+        vTaskDelay((abs(angle*9.5))/ portTICK_PERIOD_MS);
     }
     if( sens_rotation == -1)
     {
         moteur_droit.write((90 + vitesse_moteur*2.1) * sens_rotation) ;
         moteur_gauche.write((90 + vitesse_moteur) * sens_rotation) ;
-        delay(abs(angle*6.5));
+        vTaskDelay((abs(angle*6.5))/ portTICK_PERIOD_MS);
     }
 
     //Serial.print("sens rotation  = ") ; Serial.println(sens_rotation) ;
