@@ -164,7 +164,7 @@ void vTaskServo( void *pvParameters )
                 LEFT_OBSTACLE = 1;
             }
             else{
-                FRONT_OBSTACLE = 1;
+                //FRONT_OBSTACLE = 1;
                 vPrintString("Servo - Obstacle Front\r\n");
             }
         }
@@ -174,6 +174,7 @@ void vTaskServo( void *pvParameters )
 }
 //------------------------------------------------------------------------------
 #define RETURN_ACC 7000
+#define LPF 0.1
 void vTaskMeasure( void *pvParameters )
 {
     /* Variable Definition */
@@ -182,6 +183,7 @@ void vTaskMeasure( void *pvParameters )
     MPU6050 mpu;
     int16_t ax, ay, az;
     int16_t gx, gy, gz;
+    int16_t integral,lpf_ay;
 
     pcTaskName = ( char * ) pvParameters;
 
@@ -198,8 +200,14 @@ void vTaskMeasure( void *pvParameters )
 
     for( ;; )
     {
-        //mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
-        //if(ay > RETURN_ACC) FRONT_OBSTACLE;
+        mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+        lpf_ay =(1-LPF)*lpf_ay + LPF*ay;
+        //integral += 0.01*lpf_ay;
+        Serial.println(lpf_ay);
+        if(ay < (-RETURN_ACC)){
+            FRONT_OBSTACLE = 1;
+        }
+
 
         vTaskDelayUntil( &xLastWakeTime, ( 100 / portTICK_PERIOD_MS ) );
 
@@ -242,9 +250,9 @@ void vTaskCommand( void *pvParameters )
         }
 
         else if(FRONT_OBSTACLE){
-            //vPrintString("Command - Go Backward \r\n");
+            vPrintString("Command - Go Backward \r\n");
            avance(-4);
-            FRONT_OBSTACLE = 0;
+           FRONT_OBSTACLE = 0;
         }
 
         else {
