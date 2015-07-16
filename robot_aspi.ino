@@ -10,7 +10,6 @@
 #include "Wire.h"
 #include "I2Cdev.h"
 #include "MPU6050.h"
-
 /* Sonar Lib */
 #include <NewPing.h>
 
@@ -153,21 +152,21 @@ void vTaskServo( void *pvParameters )
         uS = sonar.ping(); // Send ping, get ping time in microseconds (uS).
         distance = uS/(0.1*US_ROUNDTRIP_CM);
         if(distance != 0){
-        /* Check for obstacle and return direction */
-        if(distance < OBS_MIN){
-            if(current_angle < 90 - FRONT_ANGLE){
-                vPrintString("Servo - Obstacle Right\r\n");
-                RIGHT_OBSTACLE = 1;
+            /* Check for obstacle and return direction */
+            if(distance < OBS_MIN){
+                if(current_angle < 90 - FRONT_ANGLE){
+                    vPrintString("Servo - Obstacle Right\r\n");
+                    RIGHT_OBSTACLE = 1;
+                }
+                else if(current_angle > 90 + FRONT_ANGLE){
+                    vPrintString("Servo - Obstacle Left\r\n");
+                    LEFT_OBSTACLE = 1;
+                }
+                else{
+                    //FRONT_OBSTACLE = 1;
+                    vPrintString("Servo - Obstacle Front\r\n");
+                }
             }
-            else if(current_angle > 90 + FRONT_ANGLE){
-                vPrintString("Servo - Obstacle Left\r\n");
-                LEFT_OBSTACLE = 1;
-            }
-            else{
-                //FRONT_OBSTACLE = 1;
-                vPrintString("Servo - Obstacle Front\r\n");
-            }
-        }
         }
         vTaskDelayUntil( &xLastWakeTime, ( 40 / portTICK_PERIOD_MS ) );
     }
@@ -184,13 +183,18 @@ void vTaskMeasure( void *pvParameters )
     int16_t ax, ay, az;
     int16_t gx, gy, gz;
     int16_t integral,lpf_ay;
-
+int8_t threshold, count;
+float temp;
+bool zero_detect;
+bool TurnOnZI = false;
+bool XnegMD, XposMD, YnegMD, YposMD, ZnegMD, ZposMD;
     pcTaskName = ( char * ) pvParameters;
 
     /* Initialize IMU */
-    vPrintString("Initialize MPU\r\n");
+    //vPrintString("Initialize MPU\r\n");
     mpu.initialize();
     vPrintString(mpu.testConnection() ? "Connected\r\n" : "Connection failed\r\n");
+
 
     /* Print out the name of this task. */
     vPrintString( pcTaskName );
@@ -198,16 +202,82 @@ void vTaskMeasure( void *pvParameters )
     /* Initialize variable with current tick count */
     xLastWakeTime = xTaskGetTickCount();
 
+
+    // use the code below to change accel/gyro offset valuesi
+
+
+    mpu.setAccelerometerPowerOnDelay(3);
+    mpu.setIntZeroMotionEnabled(TurnOnZI);
+    mpu.setDHPFMode(1);
+
+    mpu.setMotionDetectionThreshold(2);
+
+
+    mpu.setZeroMotionDetectionThreshold(1);
+    mpu.setMotionDetectionDuration(40); 
+
+
+    mpu.setZeroMotionDetectionDuration(500);  
+
+
     for( ;; )
     {
-        mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
-        lpf_ay =(1-LPF)*lpf_ay + LPF*ay;
+
+        /*mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+          lpf_ay =(1-LPF)*lpf_ay + LPF*ay;
+          integral = sqrt(ax*ax+ay*ay+az*az);
+        //Serial.println(integral);
         //integral += 0.01*lpf_ay;
-        Serial.println(lpf_ay);
+        Serial.print(ax);
+        Serial.print("  ");
+        Serial.print(ay);
+        Serial.print(", ");
+        Serial.print(az);
+        Serial.print(", ");
+        Serial.print(gx);
+        Serial.print(", ");
+        Serial.print(gy);
+        Serial.print(", ");
+        Serial.print(gz);
+        Serial.println(",");
         if(ay < (-RETURN_ACC)){
+        FRONT_OBSTACLE = 1;
+        }
+         */
+        mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+        //Serial.println("Getting Motion indicators, count and threshold");
+        XnegMD = mpu.getXNegMotionDetected();
+        XposMD = mpu.getXPosMotionDetected();
+        YnegMD = mpu.getYNegMotionDetected();
+        YposMD = mpu.getYPosMotionDetected();
+        ZnegMD = mpu.getZNegMotionDetected();
+        ZposMD = mpu.getZPosMotionDetected();
+        zero_detect = mpu.getIntMotionStatus();
+        threshold = mpu.getZeroMotionDetectionThreshold();
+        //Serial.println("Got to count");
+        //count = mpu.getMotionDetectionCounterDecrement();
+        //Serial.println("Getting Die Temperature");
+        temp=(mpu.getTemperature()/340.)+36.53;
+        // these methods (and a few others) are also available
+        //mpu.getAcceleration(&ax, &ay, &az);
+        //mpu.getRotation(&gx, &gy, &gz);
+        /*Serial.print(temp);Serial.print(",");
+        Serial.print(ax/16384.); Serial.print(",");
+        Serial.print(ay/16384.); Serial.print(",");
+        Serial.print(az/16384.); Serial.print(",");
+        Serial.print(gx/131.072); Serial.print(",");
+        Serial.print(gy/131.072); Serial.print(",");
+        Serial.print(gz/131.072); Serial.print(",");
+        Serial.print(zero_detect); Serial.print(",");
+        Serial.print(XnegMD); Serial.print(",");
+        Serial.println(XposMD);*/
+        //Serial.println(ay);
+        if(zero_detect){
+        FRONT_OBSTACLE = 1;
+        }
+        if(ay<-7000){
             FRONT_OBSTACLE = 1;
         }
-
 
         vTaskDelayUntil( &xLastWakeTime, ( 100 / portTICK_PERIOD_MS ) );
 
@@ -251,8 +321,8 @@ void vTaskCommand( void *pvParameters )
 
         else if(FRONT_OBSTACLE){
             vPrintString("Command - Go Backward \r\n");
-           avance(-4);
-           FRONT_OBSTACLE = 0;
+            avance(-4);
+            FRONT_OBSTACLE = 0;
         }
 
         else {
@@ -262,9 +332,9 @@ void vTaskCommand( void *pvParameters )
         //moteur_droit.write(90);
         //moteur_gauche.write(90);
         /*RIGHT_OBSTACLE = 0;
-        LEFT_OBSTACLE = 0;
-        FRONT_OBSTACLE = 0;*/
-    vTaskDelay(( 1000 / portTICK_PERIOD_MS ) );
+          LEFT_OBSTACLE = 0;
+          FRONT_OBSTACLE = 0;*/
+        vTaskDelay(( 1000 / portTICK_PERIOD_MS ) );
 
     }
 }
